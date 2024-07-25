@@ -15,6 +15,19 @@
         <div id="result"></div>
 
         <script>
+            //function to pretty render texturesets to html
+            function render_texturesets(sets) {
+                let html = "";
+                for (const setname in sets) {
+                    html += `<h3>${setname}</h3>`;
+                    const files = sets[setname];
+                    for (const str_template in files) {
+                        const filename = files[str_template];
+                        html += `<p>${str_template}: ${filename}</p>`;
+                    }
+                }
+                return html;
+            }
             document
                 .getElementById("upload-form")
                 .addEventListener("submit", function (event) {
@@ -30,9 +43,17 @@
                     resultDiv.innerHTML = "";
 
                     if (bestTemplate) {
-                        resultDiv.innerHTML = `<p>Best Matching Template: ${JSON.stringify(
+                        texturesets = get_texturesets(bestTemplate, filenames);
+
+                        title = `<h2>Best Matching Template: ${JSON.stringify(
                             bestTemplate.title
-                        )}</p>`;
+                        )}</h2>`;
+
+                        resultDiv.innerHTML =
+                            `<br>` +
+                            title +
+                            `<br>` +
+                            render_texturesets(texturesets);
                     } else {
                         resultDiv.innerHTML =
                             "<p>No matching template found.</p>";

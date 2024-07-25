@@ -1,15 +1,15 @@
 // Template
 // - filenames: str[] - list of filenames templates
 
-class Template {
-    constructor(title, filenames) {
+class TexturesTemplate {
+    constructor(title, filenames_templates) {
         this.title = title;
-        this.filenames = filenames;
+        this.filenames_templates = filenames_templates;
     }
 }
 
 const templates = [
-    new Template("PBR Metallic Roughness", [
+    new TexturesTemplate("PBR Metallic Roughness", [
         "${mesh}_BaseColor",
         "${mesh}_Roughness",
         "${mesh}_Metallic",
@@ -18,7 +18,7 @@ const templates = [
         "${mesh}_Emissive",
     ]),
     // my example
-    new Template("Random Sketchfab Template", [
+    new TexturesTemplate("Random Sketchfab Template", [
         "${material}_BaseColor",
         "${material}_Roughness",
         "${material}_Metallic",
@@ -26,7 +26,7 @@ const templates = [
         "${material}_Alpha",
     ]),
     // unity
-    new Template("Unity Standard", [
+    new TexturesTemplate("Unity Standard", [
         "${mesh}_Albedo",
         "${mesh}_MetallicSmoothness",
         "${mesh}_Normal",
@@ -48,18 +48,18 @@ function get_basename(filename) {
 }
 
 // function to check if given filename can be the output of given string template
-function match_template_str(template, filename) {
+function match_template_str(str_template, filename) {
     const basename = get_basename(filename);
     const re = new RegExp(
-        template.replace("${mesh}", "(.+)").replace("${material}", "(.+)")
+        str_template.replace("${mesh}", "(.+)").replace("${material}", "(.+)")
     );
     return re.test(basename);
 }
 
-function percent_match(template, filenames) {
+function percent_match(str_templates, filenames) {
     let match_count = 0;
     for (const filename of filenames) {
-        for (const t of template) {
+        for (const t of str_templates) {
             if (match_template_str(t, filename)) {
                 match_count++;
                 break;
@@ -74,11 +74,45 @@ function find_best_template(filenames) {
     let best_template = null;
     let best_percent = 0;
     for (const template of templates) {
-        const percent = percent_match(template.filenames, filenames);
+        const percent = percent_match(template.filenames_templates, filenames);
         if (percent > best_percent) {
             best_percent = percent;
             best_template = template;
         }
     }
     return best_template;
+}
+
+// funcion to extract mesh/material names from filenames (template is already matched)
+function extract_names(str_template, filename) {
+    const basename = get_basename(filename);
+    const re = new RegExp(
+        str_template.replace("${mesh}", "(.+)").replace("${material}", "(.+)")
+    );
+    return re.exec(basename).slice(1);
+}
+
+//function to return texturesets from filenames - we already know the template
+function get_texturesets(template, filenames) {
+    // "mesh_material": [mesh, material]
+    sets = {};
+    // "str_template": "filename"
+    file = {};
+    // "setname": file
+    files = {};
+
+    for (const filename of filenames) {
+        for (const str_template of template.filenames_templates) {
+            if (match_template_str(str_template, filename)) {
+                const [mesh, material] = extract_names(str_template, filename);
+                const setname = `${mesh}_${material}`;
+                if (!(setname in sets)) {
+                    sets[setname] = [mesh, material];
+                }
+                file[str_template] = filename;
+                files[setname] = file;
+            }
+        }
+    }
+    return files;
 }
