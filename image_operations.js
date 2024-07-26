@@ -18,3 +18,11 @@ async function extractChannel(image, channel) {
         return null;
     }
 }
+
+//function to create a black image of the same size as the input image
+async function createBlackImage(image) {
+    let black_image = new IJS.Image(image.width, image.height, {
+        kind: "GREY",
+    });
+    return black_image;
+}

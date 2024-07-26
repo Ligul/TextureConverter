@@ -35,6 +35,9 @@
                         <option value="extract_green">Extract Green</option>
                         <option value="extract_blue">Extract Blue</option>
                         <option value="extract_alpha">Extract Alpha</option>
+                        <option value="create_black_image">
+                            Create Black Image
+                        </option>
                     </select>
                 </div>
                 <button type="submit" class="btn btn-primary">Upload</button>
@@ -109,6 +112,9 @@
                                     break;
                                 case "extract_alpha":
                                     output_image = extractChannel(image, 3);
+                                    break;
+                                case "create_black_image":
+                                    output_image = createBlackImage(image);
                                     break;
                             }
 
