@@ -96,9 +96,9 @@ function extract_names(str_template, filename) {
 function get_texturesets(template, filenames) {
     // "mesh_material": [mesh, material]
     sets = {};
-    // "str_template": "filename"
-    file = {};
-    // "setname": file
+    // "str_template", "filename"
+    // file = [];
+    // "setname": [file]
     files = {};
 
     for (const filename of filenames) {
@@ -109,10 +109,12 @@ function get_texturesets(template, filenames) {
                 if (!(setname in sets)) {
                     sets[setname] = [mesh, material];
                 }
-                file[str_template] = filename;
-                files[setname] = file;
+                if (!(setname in files)) {
+                    files[setname] = [];
+                }
+                files[setname].push([str_template, filename]);
             }
         }
     }
-    return files;
+    return [sets, files];
 }

@@ -16,15 +16,15 @@
 
         <script>
             //function to pretty render texturesets to html
-            function render_texturesets(sets) {
+            function render_texturesets(sets, files) {
                 let html = "";
                 for (const setname in sets) {
                     html += `<h3>${setname}</h3>`;
-                    const files = sets[setname];
-                    for (const str_template in files) {
-                        const filename = files[str_template];
-                        html += `<p>${str_template}: ${filename}</p>`;
+                    html += "<ul>";
+                    for (const [str_template, filename] of files[setname]) {
+                        html += `<li>${str_template} - ${filename}</li>`;
                     }
+                    html += "</ul>";
                 }
                 return html;
             }
@@ -53,7 +53,7 @@
                             `<br>` +
                             title +
                             `<br>` +
-                            render_texturesets(texturesets);
+                            render_texturesets(texturesets[0], texturesets[1]);
                     } else {
                         resultDiv.innerHTML =
                             "<p>No matching template found.</p>";
