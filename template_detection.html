@@ -20,11 +20,13 @@
                 let html = "";
                 for (const setname in sets) {
                     html += `<h3>${setname}</h3>`;
-                    html += "<ul>";
-                    for (const [str_template, filename] of files[setname]) {
-                        html += `<li>${str_template} - ${filename}</li>`;
+                    html += "<table>";
+                    for (const [str_template, filename] of Object.entries(
+                        files[setname]
+                    )) {
+                        html += `<tr><td>${str_template}</td><td>‣</td><td>${filename}</td></tr>`;
                     }
-                    html += "</ul>";
+                    html += "</table>";
                 }
                 return html;
             }
@@ -48,12 +50,15 @@
                         title = `<h2>Best Matching Template: ${JSON.stringify(
                             bestTemplate.title
                         )}</h2>`;
+                        stats = `<p>Mapped ${texturesets[2]} out of ${filenames.length} files.</p>`;
 
                         resultDiv.innerHTML =
                             `<br>` +
                             title +
-                            `<br>` +
-                            render_texturesets(texturesets[0], texturesets[1]);
+                            stats +
+                            `<hr>` +
+                            render_texturesets(texturesets[0], texturesets[1]) +
+                            `<br>`;
                     } else {
                         resultDiv.innerHTML =
                             "<p>No matching template found.</p>";
