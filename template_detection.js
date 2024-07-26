@@ -119,3 +119,27 @@ function get_texturesets(template, filenames) {
     }
     return [sets, files, mapped_count];
 }
+
+//function to filter out files with extension not in the list
+function remove_non_texture_files(filenames) {
+    const texture_extensions = [
+        "png",
+        "jpg",
+        "jpeg",
+        "tga",
+        "bmp",
+        "hdr",
+        "hdri",
+        "exr",
+        "tif",
+        "tiff",
+        "gif",
+        "webp",
+        "svg",
+        "psd",
+        "dds",
+    ];
+    return filenames.filter((filename) =>
+        texture_extensions.includes(filename.split(".").pop().toLowerCase())
+    );
+}
