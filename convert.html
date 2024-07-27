@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Converter</title>
+        <script src="convert.js" defer></script>
+        <link rel="stylesheet" href="static/css/lux_bootstrap.min.css" />
+        <script
+            src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
+            integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz"
+            crossorigin="anonymous"
+        ></script>
+        <style>
+            /* .bg-rainbow-hor {
+                background: linear-gradient(
+                    to right,
+                    red,
+                    green,
+                    blue
+                ) !important;
+            } */
+
+            /* Now .bg-rainbow-hor but soft and fancy - it represents RGB and should fit the Lux theme, use pastel colors */
+            .bg-rainbow-hor {
+                background: linear-gradient(
+                    to right,
+                    #ff6b81,
+                    #6f9ff7
+                ) !important;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="d-flex justify-content-between align-items-center my-4">
+                <h1>Converter</h1>
+                <a href="index.html" class="btn btn-secondary">Back to Index</a>
+            </div>
+            <p>
+                Looks more like a template detection on steroids, but it will
+                change soon!
+            </p>
+            <hr />
+            <form id="upload-form" class="mb-4">
+                <div class="mb-3">
+                    <input
+                        type="file"
+                        id="file-input"
+                        multiple
+                        class="form-control"
+                    />
+                </div>
+                <button type="submit" class="btn btn-primary">Upload</button>
+            </form>
+            <div id="result"></div>
+        </div>
+
+        <script>
+            // Function to render color mode as badges
+            function render_color_mode(channels_count) {
+                if (channels_count === 1) {
+                    return `<span class="badge bg-dark">GRAY</span>`;
+                } else if (channels_count === 2) {
+                    return `<span class="badge bg-dark">GRAY</span> <span class="badge bg-info">A</span>`;
+                } else if (channels_count === 3) {
+                    return `<span class="badge bg-rainbow-hor">RGB</span>`;
+                } else if (channels_count === 4) {
+                    return `<span class="badge bg-rainbow-hor">RGB</span> <span class="badge bg-info">A</span>`;
+                }
+            }
+
+            // Function to pretty render texturesets to HTML
+            function render_texturesets(sets, files) {
+                let html = "";
+                for (const setname in sets) {
+                    html += `<h3>${setname}</h3>`;
+                    // no borders
+                    html += '<table class="table table-striped">';
+                    for (const assotiation of files[setname]) {
+                        console.log(assotiation);
+                        html += `<tr><td>${
+                            assotiation.texture.name_template
+                        }</td><td>${render_color_mode(
+                            assotiation.texture.channels.length
+                        )}</td><td>${assotiation.image_filename}</td></tr>`;
+                    }
+                    html += "</table>";
+                }
+                return html;
+            }
+
+            document
+                .getElementById("upload-form")
+                .addEventListener("submit", function (event) {
+                    event.preventDefault();
+
+                    const fileInput = document.getElementById("file-input");
+                    const files = Array.from(fileInput.files);
+                    const filenames = files.map((file) => file.name);
+                    const tex_filenames = remove_non_texture_files(filenames);
+
+                    const bestTemplate = find_best_template(
+                        tex_filenames,
+                        templates
+                    );
+
+                    const resultDiv = document.getElementById("result");
+                    resultDiv.innerHTML = "";
+
+                    if (bestTemplate) {
+                        const texturesets = get_texturesets(
+                            bestTemplate,
+                            tex_filenames
+                        );
+
+                        const title = `<h2>Best Matching Template: ${JSON.stringify(
+                            bestTemplate.title
+                        )}</h2>`;
+                        const stats = `<p>Mapped ${texturesets[2]} out of ${tex_filenames.length} textures files.</p>`;
+
+                        var skipped = "";
+                        if (filenames.length > tex_filenames.length) {
+                            skipped = `<p>Skipped ${
+                                filenames.length - tex_filenames.length
+                            } non-texture files.</p>`;
+                        }
+
+                        resultDiv.innerHTML =
+                            `<br>` +
+                            title +
+                            stats +
+                            skipped +
+                            `<hr>` +
+                            render_texturesets(texturesets[0], texturesets[1]) +
+                            `<br>`;
+                    } else {
+                        resultDiv.innerHTML =
+                            "<p>No matching template found.</p>";
+                    }
+                });
+        </script>
+    </body>
+</html>
