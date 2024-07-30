@@ -67,6 +67,19 @@ class AssociatedTexture {
 }
 
 async function extract_channel(image, channel) {
+    // if channel is out of bounds, return null
+    console.log(
+        "Extracting channel:",
+        channel,
+        "(",
+        channel + 1,
+        ")",
+        "channels in img:",
+        image.channels
+    );
+    if (channel >= image.channels) {
+        return null;
+    }
     try {
         let channel_image = await image.getChannel(channel);
         return channel_image;
@@ -90,7 +103,11 @@ async function getTextureChannel(associated_tex, texture_channel) {
     let image = await IJS.Image.load(image_src);
 
     for (const channel of associated_tex.texture.channels) {
-        if (channel.map_type === texture_channel.map_type) {
+        if (
+            channel.map_type === texture_channel.map_type &&
+            channel.channel === texture_channel.channel
+        ) {
+            console.log("Extracting channel:", channel);
             return await extract_channel(image, channel.channel);
         }
     }
@@ -136,7 +153,7 @@ const templates = [
             new TextureChannel(TextureType.BaseColor, 0),
             new TextureChannel(TextureType.BaseColor, 1),
             new TextureChannel(TextureType.BaseColor, 2),
-            new TextureChannel(TextureType.Opacity, 0),
+            new TextureChannel(TextureType.Opacity, 3),
         ]),
         new Texture("${mesh}_MetallicSmoothness", [
             new TextureChannel(TextureType.Metallic, 0),
@@ -287,11 +304,24 @@ function get_texturesets(template, files) {
     return [texture_sets, associated_textures, mapped_count];
 }
 
-async function createBlackImage(image) {
-    let black_image = new IJS.Image(image.width, image.height, {
+async function create_default_image(image_ref, texture_type) {
+    // Rules for filling missing channels of different texture types
+    // TODO: make this more configurable
+    fill_white = [
+        TextureType.AmbientOcclusion,
+        TextureType.BlendingMask,
+        TextureType.Opacity,
+    ];
+
+    let image = await new IJS.Image(image_ref.width, image_ref.height, {
         kind: "GREY",
     });
-    return black_image;
+    if (fill_white.includes(texture_type)) {
+        // invert
+        image = image.invert();
+    }
+
+    return image;
 }
 
 // create image texture from associated textures of one set
@@ -329,6 +359,7 @@ async function create_image_texture(
     for (const channel of texture_template.channels) {
         var channel_image = null;
         for (const associated_texture of associated_textures) {
+            console.log("Trying to get channel:", channel);
             channel_image = await getTextureChannel(
                 associated_texture,
                 channel
@@ -339,10 +370,11 @@ async function create_image_texture(
         }
         extracted_channels.push(channel_image);
     }
-    console.log(extracted_channels);
+    console.log("Extracted channels:", extracted_channels);
 
     // If all channels are null, return null
     if (extracted_channels.every((c) => c === null)) {
+        console.log("All channels are null");
         return null;
     }
 
@@ -351,12 +383,19 @@ async function create_image_texture(
     console.log(size_ref.width, size_ref.height);
 
     // For all null channels, create black image of the same size
-    extracted_channels = extracted_channels.map((c) => {
-        if (c === null) {
-            return createBlackImage(size_ref);
+    for (let i = 0; i < extracted_channels.length; i++) {
+        if (extracted_channels[i] === null) {
+            extracted_channels[i] = await create_default_image(
+                size_ref,
+                texture_template.channels[i].map_type
+            );
         }
-        return c;
-    });
+    }
+
+    console.log(
+        "Extracted channels (after default images):",
+        extracted_channels
+    );
 
     // Create new image with all channels in data
     var data = new Uint8Array(
