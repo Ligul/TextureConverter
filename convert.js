@@ -60,25 +60,41 @@ class TexturesTemplate {
 }
 
 class AssociatedTexture {
-    constructor(texture, image_filename) {
+    constructor(texture, image_file) {
         this.texture = texture;
-        this.image_filename = image_filename;
+        this.image_file = image_file;
     }
+}
 
-    // TODO: Tis approach requires to have all images loaded at once
-    // Better to create a sorted by source image queue channels to load
-    // (but in this case we have to write to multiple images at once... There are things to consider)
-    getTextureChannel(texture_channel) {
-        //TODO: load image
-        throw new Error("Not implemented");
-
-        for (const channel of this.texture.channels) {
-            if (channel === texture_channel) {
-                return channel;
-            }
-        }
+async function extract_channel(image, channel) {
+    try {
+        let channel_image = await image.getChannel(channel);
+        return channel_image;
+    } catch (e) {
         return null;
     }
+}
+
+// TODO: Tis approach requires to have all images loaded at once
+// Better to create a sorted by source image queue channels to load
+// (but in this case we have to write to multiple images at once... There are things to consider)
+async function getTextureChannel(associated_tex, texture_channel) {
+    // Load image
+    const reader = new FileReader();
+    const image_src = await new Promise((resolve, reject) => {
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = () => reject(reader.error);
+        reader.readAsDataURL(associated_tex.image_file);
+    });
+
+    let image = await IJS.Image.load(image_src);
+
+    for (const channel of associated_tex.texture.channels) {
+        if (channel.map_type === texture_channel.map_type) {
+            return await extract_channel(image, channel.channel);
+        }
+    }
+    return null;
 }
 
 // Some default templates
@@ -120,7 +136,7 @@ const templates = [
             new TextureChannel(TextureType.BaseColor, 0),
             new TextureChannel(TextureType.BaseColor, 1),
             new TextureChannel(TextureType.BaseColor, 2),
-            new TextureChannel(TextureType.Opacity, 3),
+            new TextureChannel(TextureType.Opacity, 0),
         ]),
         new Texture("${mesh}_MetallicSmoothness", [
             new TextureChannel(TextureType.Metallic, 0),
@@ -176,25 +192,25 @@ function match_template_str(str_template, filename) {
     return re.test(basename);
 }
 
-function percent_match(texture_templates, filenames) {
+function percent_match(texture_templates, files) {
     let match_count = 0;
-    for (const filename of filenames) {
+    for (const file of files) {
         for (const t of texture_templates) {
-            if (match_template_str(t.name_template, filename)) {
+            if (match_template_str(t.name_template, file.name)) {
                 match_count++;
                 break;
             }
         }
     }
-    return match_count / filenames.length;
+    return match_count / files.length;
 }
 
-// function to find best matching template for given filenames
-function find_best_template(filenames, templates) {
+// function to find best matching template for given files
+function find_best_template(files, templates) {
     let best_template = null;
     let best_percent = 0;
     for (const template of templates) {
-        const percent = percent_match(template.textures, filenames);
+        const percent = percent_match(template.textures, files);
         if (percent > best_percent) {
             best_percent = percent;
             best_template = template;
@@ -204,7 +220,7 @@ function find_best_template(filenames, templates) {
 }
 
 //function to filter out files with extension not in the list
-function remove_non_texture_files(filenames) {
+function remove_non_texture_files(files) {
     const texture_extensions = [
         "png",
         "jpg",
@@ -222,8 +238,8 @@ function remove_non_texture_files(filenames) {
         "psd",
         "dds",
     ];
-    return filenames.filter((filename) =>
-        texture_extensions.includes(filename.split(".").pop().toLowerCase())
+    return files.filter((file) =>
+        texture_extensions.includes(file.name.split(".").pop().toLowerCase())
     );
 }
 
@@ -237,7 +253,7 @@ function extract_names(str_template, filename) {
 }
 
 //function to return texturesets from filenames - we already know the template
-function get_texturesets(template, filenames) {
+function get_texturesets(template, files) {
     // dict of texture sets
     // "mesh_material": [mesh, material]
     texture_sets = {};
@@ -247,12 +263,12 @@ function get_texturesets(template, filenames) {
     // count of mapped files
     mapped_count = 0;
 
-    for (const filename of filenames) {
+    for (const file of files) {
         for (const texture_template of template.textures) {
-            if (match_template_str(texture_template.name_template, filename)) {
+            if (match_template_str(texture_template.name_template, file.name)) {
                 const [mesh, material] = extract_names(
                     texture_template.name_template,
-                    filename
+                    file.name
                 );
                 const setname = `${mesh}_${material}`;
                 if (!(setname in texture_sets)) {
@@ -262,11 +278,163 @@ function get_texturesets(template, filenames) {
                     associated_textures[setname] = [];
                 }
                 associated_textures[setname].push(
-                    new AssociatedTexture(texture_template, filename)
+                    new AssociatedTexture(texture_template, file)
                 );
                 mapped_count++;
             }
         }
     }
     return [texture_sets, associated_textures, mapped_count];
+}
+
+async function createBlackImage(image) {
+    let black_image = new IJS.Image(image.width, image.height, {
+        kind: "GREY",
+    });
+    return black_image;
+}
+
+// create image texture from associated textures of one set
+async function create_image_texture(
+    associated_textures,
+    set,
+    texture_template
+) {
+    // TODO: there are not just mesh/material - redo this with dictionary
+    // Name the result texture
+    const result_name = texture_template.name_template
+        .replace("${mesh}", set[0])
+        .replace("${material}", set[1]);
+    console.log(result_name);
+
+    // Determine color mode
+    var color_mode = "";
+    switch (texture_template.channels.length) {
+        case 1:
+            color_mode = "GREY";
+            break;
+        case 2:
+            color_mode = "GREYA";
+            break;
+        case 3:
+            color_mode = "RGB";
+            break;
+        case 4:
+            color_mode = "RGBA";
+            break;
+    }
+
+    // Gather all channels
+    var extracted_channels = [];
+    for (const channel of texture_template.channels) {
+        var channel_image = null;
+        for (const associated_texture of associated_textures) {
+            channel_image = await getTextureChannel(
+                associated_texture,
+                channel
+            );
+            if (channel_image !== null) {
+                break;
+            }
+        }
+        extracted_channels.push(channel_image);
+    }
+    console.log(extracted_channels);
+
+    // If all channels are null, return null
+    if (extracted_channels.every((c) => c === null)) {
+        return null;
+    }
+
+    // Get target size from first non-null channel
+    const size_ref = extracted_channels.find((c) => c !== null);
+    console.log(size_ref.width, size_ref.height);
+
+    // For all null channels, create black image of the same size
+    extracted_channels = extracted_channels.map((c) => {
+        if (c === null) {
+            return createBlackImage(size_ref);
+        }
+        return c;
+    });
+
+    // Create new image with all channels in data
+    var data = new Uint8Array(
+        size_ref.width * size_ref.height * extracted_channels.length
+    );
+    for (let i = 0; i < extracted_channels.length; i++) {
+        for (let j = 0; j < extracted_channels[i].data.length; j++) {
+            data[j * extracted_channels.length + i] =
+                extracted_channels[i].data[j];
+        }
+    }
+    var result_image = new IJS.Image(size_ref.width, size_ref.height, data, {
+        kind: color_mode,
+    });
+
+    // Create new image with all channels
+    // var result_image = new IJS.Image(size_ref.width, size_ref.height, {
+    //     kind: color_mode,
+    // });
+    console.log(result_image);
+    // for (let i = 0; i < extracted_channels.length; i++) {
+    //     console.log(extracted_channels[i]);
+    //     try {
+    //         result_image = result_image.setChannel(extracted_channels[i], i);
+    //     } catch (e) {
+    //         console.log(e);
+    //     }
+    // }
+
+    return [result_name, result_image];
+}
+
+function saveAs(blob, filename) {
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.click();
+}
+
+// Save array of [name, image] to zip and download
+function download_images_zip(images, name) {
+    const zip = new JSZip();
+    for (const image of images) {
+        zip.file(`${image[0]}.png`, image[1].toBlob("image/png"));
+    }
+    zip.generateAsync({ type: "blob" }).then(function (content) {
+        saveAs(content, name + ".zip");
+    });
+}
+
+// Generate archive name from sets
+function generate_archive_name(texture_sets) {
+    const max_name_length = 64;
+    var name = "Tex_";
+    for (const set of Object.keys(texture_sets)) {
+        name += `${set}_`;
+    }
+    name = name.slice(0, -1);
+    if (name.length > max_name_length) {
+        name = name.slice(0, max_name_length);
+    }
+    return name;
+}
+
+async function convert(texture_sets, associated_textures, target_template) {
+    const result_images = [];
+    for (const set of Object.keys(texture_sets)) {
+        for (const texture_template of target_template.textures) {
+            const result = await create_image_texture(
+                associated_textures[set],
+                texture_sets[set],
+                texture_template
+            );
+            if (result !== null) {
+                result_images.push(result);
+            }
+        }
+    }
+    download_images_zip(result_images, generate_archive_name(texture_sets));
 }
