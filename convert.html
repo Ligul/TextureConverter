@@ -112,63 +112,83 @@
                 return html;
             }
 
-            document
-                .getElementById("upload-form")
-                .addEventListener("submit", function (event) {
-                    event.preventDefault();
+            function render_button(progress) {
+                convert_button = document.querySelector("button[type=submit]");
+                // convert_button.innerHTML = `<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Converting... ${progress}%`;
+                convert_button.innerHTML = `<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Converting...`;
+            }
 
-                    const fileInput = document.getElementById("file-input");
-                    const files = Array.from(fileInput.files);
-                    const tex_files = remove_non_texture_files(files);
+            async function run() {
+                const fileInput = document.getElementById("file-input");
+                const files = Array.from(fileInput.files);
+                const tex_files = remove_non_texture_files(files);
 
-                    const bestTemplate = find_best_template(
-                        tex_files,
-                        templates
+                const bestTemplate = find_best_template(tex_files, templates);
+
+                const resultDiv = document.getElementById("result");
+                resultDiv.innerHTML = "";
+
+                if (bestTemplate) {
+                    const texturesets = get_texturesets(
+                        bestTemplate,
+                        tex_files
                     );
 
-                    const resultDiv = document.getElementById("result");
-                    resultDiv.innerHTML = "";
+                    const title = `<h2>Best Matching Template: ${JSON.stringify(
+                        bestTemplate.title
+                    )}</h2>`;
+                    const stats = `<p>Mapped ${texturesets[2]} out of ${tex_files.length} textures files.</p>`;
 
-                    if (bestTemplate) {
-                        const texturesets = get_texturesets(
-                            bestTemplate,
-                            tex_files
-                        );
-
-                        const title = `<h2>Best Matching Template: ${JSON.stringify(
-                            bestTemplate.title
-                        )}</h2>`;
-                        const stats = `<p>Mapped ${texturesets[2]} out of ${tex_files.length} textures files.</p>`;
-
-                        var skipped = "";
-                        if (files.length > tex_files.length) {
-                            skipped = `<p>Skipped ${
-                                files.length - tex_files.length
-                            } non-texture files.</p>`;
-                        }
-
-                        resultDiv.innerHTML =
-                            `<br>` +
-                            title +
-                            stats +
-                            skipped +
-                            `<hr>` +
-                            render_texturesets(texturesets[0], texturesets[1]) +
-                            `<br>`;
-
-                        const targetTemplate =
-                            document.getElementById("target-template");
-                        target_template = JSON.parse(targetTemplate.value);
-
-                        convert(
-                            texturesets[0],
-                            texturesets[1],
-                            target_template
-                        );
-                    } else {
-                        resultDiv.innerHTML =
-                            "<p>No matching template found.</p>";
+                    var skipped = "";
+                    if (files.length > tex_files.length) {
+                        skipped = `<p>Skipped ${
+                            files.length - tex_files.length
+                        } non-texture files.</p>`;
                     }
+
+                    resultDiv.innerHTML =
+                        `<br>` +
+                        title +
+                        stats +
+                        skipped +
+                        `<hr>` +
+                        render_texturesets(texturesets[0], texturesets[1]) +
+                        `<br>`;
+
+                    const targetTemplate =
+                        document.getElementById("target-template");
+                    target_template = load_template_from_json(
+                        targetTemplate.value
+                    );
+
+                    await convert(
+                        texturesets[0],
+                        texturesets[1],
+                        target_template,
+                        render_button
+                    );
+                } else {
+                    resultDiv.innerHTML = "<p>No matching template found.</p>";
+                }
+            }
+
+            document
+                .getElementById("upload-form")
+                .addEventListener("submit", async function (event) {
+                    event.preventDefault();
+
+                    convert_button = document.querySelector(
+                        "button[type=submit]"
+                    );
+                    convert_button_inner = convert_button.innerHTML;
+                    render_button(0);
+                    convert_button.disabled = true;
+
+                    setTimeout(async function () {
+                        await run();
+                        convert_button.innerHTML = convert_button_inner;
+                        convert_button.disabled = false;
+                    }, 100);
                 });
         </script>
     </body>

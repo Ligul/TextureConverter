@@ -1,3 +1,35 @@
+// Some textures can represent same property in different ways for different renderers
+// Theese classes are supposed to proivide some to-normal-case-from-renderer-specific-case and back conversion
+// BaseTextureUnifier does nothing, texture-specific unifiers should be inherited from it
+class BaseTextureUnifier {
+    // unify texture
+    static async to_unified(texture) {
+        console.log("BaseTextureUnifier to_unified - doing nothing");
+        return texture;
+    }
+    // convert unified texture back to original
+    static async from_unified(texture) {
+        console.log("BaseTextureUnifier from_unified - doing nothing");
+        return texture;
+    }
+}
+// invertor - is used for unity's smoothness
+class InvertorUnifier extends BaseTextureUnifier {
+    static async to_unified(texture) {
+        console.log("InvertorUnifier to_unified - inverting");
+        return texture.invert();
+    }
+    static async from_unified(texture) {
+        console.log("InvertorUnifier from_unified - inverting");
+        return texture.invert();
+    }
+}
+
+unifiers = {
+    BaseTextureUnifier: BaseTextureUnifier,
+    InvertorUnifier: InvertorUnifier,
+};
+
 //Possible types of 3D textures
 TextureType = {
     AmbientOcclusion: 0,
@@ -17,28 +49,125 @@ TextureType = {
     Height: 14,
     Ior: 15,
     Metallic: 16,
-    NormalDirectX: 17,
-    NormalOpenGL: 18,
-    Opacity: 19,
-    Reflection: 20,
-    Roughness: 21,
-    Scattering: 22,
-    ScatteringColor: 23,
-    SheenColor: 24,
-    SheenOpacity: 25,
-    SheenRoughness: 26,
-    Specular: 27,
-    SpecularEdgeColor: 28,
-    SpecularLevel: 29,
-    Translucency: 30,
-    Transmissive: 31,
+    // NormalDirectX: 17, - use NormalOpenGL with InvertorUnifier for green channel
+    NormalOpenGL: 17,
+    Opacity: 18,
+    Reflection: 19,
+    Roughness: 20,
+    Scattering: 21,
+    ScatteringColor: 22,
+    SheenColor: 23,
+    SheenOpacity: 24,
+    SheenRoughness: 25,
+    Specular: 26,
+    SpecularEdgeColor: 27,
+    SpecularLevel: 28,
+    Translucency: 29,
+    Transmissive: 30,
+};
+
+TextureProperties = {
+    [TextureType.AmbientOcclusion]: {
+        default_color: 255,
+    },
+    [TextureType.AnisotropyAngle]: {
+        default_color: 255,
+    },
+    [TextureType.AnisotropyLevel]: {
+        default_color: 255,
+    },
+    [TextureType.BaseColor]: {
+        default_color: 255,
+    },
+    [TextureType.BlendingMask]: {
+        default_color: 255,
+    },
+    [TextureType.CoatColor]: {
+        default_color: 255,
+    },
+    [TextureType.CoatNormal]: {
+        default_color: 255,
+    },
+    [TextureType.CoatOpacity]: {
+        default_color: 255,
+    },
+    [TextureType.CoatRoughness]: {
+        default_color: 128,
+    },
+    [TextureType.CoatSpecularLevel]: {
+        default_color: 255,
+    },
+    [TextureType.Diffuse]: {
+        default_color: 255,
+    },
+    [TextureType.Displacement]: {
+        default_color: 0,
+    },
+    [TextureType.Emissive]: {
+        default_color: 0,
+    },
+    [TextureType.Glossiness]: {
+        default_color: 128,
+    },
+    [TextureType.Height]: {
+        default_color: 0,
+    },
+    [TextureType.Ior]: {
+        default_color: 255,
+    },
+    [TextureType.Metallic]: {
+        default_color: 0,
+    },
+    [TextureType.NormalOpenGL]: {
+        default_color: 128,
+    },
+    [TextureType.Opacity]: {
+        default_color: 255,
+    },
+    [TextureType.Reflection]: {
+        default_color: 255,
+    },
+    [TextureType.Roughness]: {
+        default_color: 128,
+    },
+    [TextureType.Scattering]: {
+        default_color: 255,
+    },
+    [TextureType.ScatteringColor]: {
+        default_color: 255,
+    },
+    [TextureType.SheenColor]: {
+        default_color: 255,
+    },
+    [TextureType.SheenOpacity]: {
+        default_color: 255,
+    },
+    [TextureType.SheenRoughness]: {
+        default_color: 128,
+    },
+    [TextureType.Specular]: {
+        default_color: 255,
+    },
+    [TextureType.SpecularEdgeColor]: {
+        default_color: 255,
+    },
+    [TextureType.SpecularLevel]: {
+        default_color: 255,
+    },
+    [TextureType.Translucency]: {
+        default_color: 255,
+    },
+    [TextureType.Transmissive]: {
+        default_color: 255,
+    },
 };
 
 // Type representing certain channel of certain texture type
 class TextureChannel {
-    constructor(map_type, channel) {
+    constructor(map_type, channel, unifier = "BaseTextureUnifier") {
         this.map_type = map_type;
         this.channel = channel; // 0 - R, 1 - G, 2 - B, 3 - A
+        this.unifier = unifier;
     }
 }
 
@@ -102,13 +231,21 @@ async function getTextureChannel(associated_tex, texture_channel) {
 
     let image = await IJS.Image.load(image_src);
 
-    for (const channel of associated_tex.texture.channels) {
+    for (const channel_pos in associated_tex.texture.channels) {
+        let channel = associated_tex.texture.channels[parseInt(channel_pos)];
         if (
             channel.map_type === texture_channel.map_type &&
             channel.channel === texture_channel.channel
         ) {
-            console.log("Extracting channel:", channel);
-            return await extract_channel(image, channel.channel);
+            console.log(
+                "Extracting channel:",
+                channel,
+                "pos:",
+                parseInt(channel_pos)
+            );
+            let result = await extract_channel(image, parseInt(channel_pos));
+            let unifier = unifiers[channel.unifier];
+            return await unifier.to_unified(result);
         }
     }
     return null;
@@ -153,11 +290,14 @@ const templates = [
             new TextureChannel(TextureType.BaseColor, 0),
             new TextureChannel(TextureType.BaseColor, 1),
             new TextureChannel(TextureType.BaseColor, 2),
-            new TextureChannel(TextureType.Opacity, 3),
+            new TextureChannel(TextureType.Opacity, 0),
         ]),
         new Texture("${mesh}_MetallicSmoothness", [
+            // here is the example of RGB=GREY case
             new TextureChannel(TextureType.Metallic, 0),
-            new TextureChannel(TextureType.Roughness, 0),
+            new TextureChannel(TextureType.Metallic, 0),
+            new TextureChannel(TextureType.Metallic, 0),
+            new TextureChannel(TextureType.Roughness, 0, "InvertorUnifier"),
         ]),
         new Texture("${mesh}_Normal", [
             new TextureChannel(TextureType.NormalOpenGL, 0),
@@ -176,21 +316,30 @@ const templates = [
 ];
 
 // test - save/load templates to/from JSON
-function test_save_load() {
-    console.log(templates);
-
-    const templates_json = JSON.stringify(templates, null, 4);
-
+function load_template_from_json(template_json) {
     // load keeping class instances to preserve methods
     // TODO: make sure everything is loaded correctly
-    const loaded_templates = JSON.parse(templates_json).map(
-        (t) =>
-            new TexturesTemplate(
-                t.title,
-                t.textures.map((t) => new Texture(t.name_template, t.channels))
-            )
-    );
-    console.log(loaded_templates);
+    // Keep same unifier class as before serialization
+    let loaded_template = [JSON.parse(template_json)];
+    loaded_template = loaded_template.map((t) => {
+        return new TexturesTemplate(
+            t.title,
+            t.textures.map((texture) => {
+                return new Texture(
+                    texture.name_template,
+                    texture.channels.map((channel) => {
+                        return new TextureChannel(
+                            channel.map_type,
+                            channel.channel,
+                            channel.unifier
+                        );
+                    })
+                );
+            })
+        );
+    })[0];
+    console.log(loaded_template);
+    return loaded_template;
 }
 
 // functions from template_detection.js
@@ -305,22 +454,13 @@ function get_texturesets(template, files) {
 }
 
 async function create_default_image(image_ref, texture_type) {
-    // Rules for filling missing channels of different texture types
-    // TODO: make this more configurable
-    fill_white = [
-        TextureType.AmbientOcclusion,
-        TextureType.BlendingMask,
-        TextureType.Opacity,
-    ];
-
-    let image = await new IJS.Image(image_ref.width, image_ref.height, {
+    let data = new Uint8Array(image_ref.width * image_ref.height);
+    for (let i = 0; i < data.length; i++) {
+        data[i] = TextureProperties[texture_type].default_color;
+    }
+    let image = await new IJS.Image(image_ref.width, image_ref.height, data, {
         kind: "GREY",
     });
-    if (fill_white.includes(texture_type)) {
-        // invert
-        image = image.invert();
-    }
-
     return image;
 }
 
@@ -392,6 +532,15 @@ async function create_image_texture(
         }
     }
 
+    // apply unifiers
+    for (let i = 0; i < extracted_channels.length; i++) {
+        console.log(texture_template);
+        let unifier = unifiers[texture_template.channels[i].unifier];
+        extracted_channels[i] = await unifier.from_unified(
+            extracted_channels[i]
+        );
+    }
+
     console.log(
         "Extracted channels (after default images):",
         extracted_channels
@@ -448,9 +597,9 @@ function download_images_zip(images, name) {
 }
 
 // Generate archive name from sets
-function generate_archive_name(texture_sets) {
-    const max_name_length = 64;
-    var name = "Tex_";
+function generate_archive_name(template_title, texture_sets) {
+    const max_name_length = 100;
+    var name = template_title.replace(" ", "_") + "_";
     for (const set of Object.keys(texture_sets)) {
         name += `${set}_`;
     }
@@ -461,7 +610,13 @@ function generate_archive_name(texture_sets) {
     return name;
 }
 
-async function convert(texture_sets, associated_textures, target_template) {
+async function convert(
+    texture_sets,
+    associated_textures,
+    target_template,
+    progress_callback
+) {
+    const total_count = Object.keys(texture_sets).length;
     const result_images = [];
     for (const set of Object.keys(texture_sets)) {
         for (const texture_template of target_template.textures) {
@@ -474,6 +629,16 @@ async function convert(texture_sets, associated_textures, target_template) {
                 result_images.push(result);
             }
         }
+        // TODO: Make progress_callback actually update page
+        const progress = (result_images.length / total_count) * 100;
+        progress_callback(progress);
     }
-    download_images_zip(result_images, generate_archive_name(texture_sets));
+    if (result_images.length === 0) {
+        console.log("No images to save");
+        return;
+    }
+    download_images_zip(
+        result_images,
+        generate_archive_name(target_template.title, texture_sets)
+    );
 }
